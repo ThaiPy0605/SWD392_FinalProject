@@ -27,13 +27,22 @@ const LoginPage = () => {
     setMode(nextMode);
   };
 
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     event.preventDefault();
     if (!email.trim()) return setError('Please enter your email address.');
     if (password.length < 6) return setError('Password must contain at least 6 characters.');
 
-    login(email, password);
-    navigate(email.toLowerCase().includes('admin') ? '/admin' : '/');
+    try {
+      const result = await login(email, password);
+      const userRole = result?.user?.role || (email.toLowerCase().includes('admin') ? 'ADMIN' : 'MEMBER');
+      if (userRole === 'ADMIN') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
+    } catch (err) {
+      setError(err.message || 'Invalid email or password');
+    }
   };
 
   const handleRegister = (event) => {
@@ -66,15 +75,26 @@ const LoginPage = () => {
     setRegisterForm((current) => ({ ...current, [field]: value }));
   };
 
-  const handleGoogleLogin = () => {
-    loginWithGoogle({ name: 'Tuan Phan', email: 'tuanpt2109@gmail.com', avatar: null });
-    navigate('/');
+  const handleGoogleSignIn = () => {
+    const googleUserProfile = {
+      name: 'Tuan Phan',
+      email: 'tuanpt2109@gmail.com',
+      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDt-adpYatyvcvUgp1Mg-Hqzl0OHcf3bO68bPNNwh40gMqZzcR9RAEUu0CFpgmcJm17oMAcrdY14-jcwncBiqq1uks4gdNnWOf3oCMdR7BtZFQRk7tO95Ag0mu58NksCiJHIUbBAQ7D925I70hMwdEpYmZ7E9UALoxeFTnpALisH3mZlptx6My45BGa0g7MiRTqYjk_tZV2CLlBjBGAdgVBwovgqUEWrrXvsE-KkxmKt7jxC4gAh8njpLv_pfgQzllRH4FHcFeCLMU'
+    };
+
+    if (loginWithGoogle) {
+      loginWithGoogle(googleUserProfile);
+      navigate('/');
+    }
   };
 
-  const handleAdminLogin = () => {
-    login('admin@ohstem.edu', '123456');
+  const handleMicrosoftMockLogin = async () => {
+    await login('admin@example.com', 'password1');
     navigate('/admin');
   };
+
+  const handleGoogleLogin = handleGoogleSignIn;
+  const handleAdminLogin = handleMicrosoftMockLogin;
 
   return (
     <main className={`login-page ${isRegister ? 'login-page--register' : 'login-page--signin'}`}>

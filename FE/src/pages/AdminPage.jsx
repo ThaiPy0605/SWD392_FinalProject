@@ -10,6 +10,8 @@ const AdminPage = ({ searchQuery }) => {
     addProduct, 
     updateProduct, 
     deleteProduct,
+    categories,
+    brands,
     currentAdminTab
   } = useApp();
 
@@ -921,8 +923,18 @@ const AdminPage = ({ searchQuery }) => {
                     onChange={(e) => setProdForm(prev => ({ ...prev, category: e.target.value }))}
                     className="w-full border border-outline-variant rounded-lg p-sm bg-white text-admin-body-lg outline-none"
                   >
-                    <option value="Robotics">Robotics</option>
-                    <option value="Electronics">Electronics</option>
+                    {categories && categories.length > 0 ? (
+                      categories.map(c => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Robotics">Robotics</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Skincare">Skincare</option>
+                        <option value="Makeup">Makeup</option>
+                      </>
+                    )}
                   </select>
                 </div>
               </div>

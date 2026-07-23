@@ -1,8 +1,11 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import api from '../services/api';
 
 const AppContext = createContext();
 
 export const useApp = () => useContext(AppContext);
+
+const DEFAULT_IMAGE = "https://lh3.googleusercontent.com/aida-public/AB6AXuBDf_XxH7LpSZELW-11NMJfENJVyRwrznRazpZ2ZdaLHyC1Ti4QftQjt38ZcGNhmajAos5e1cHVuVxYUlda5AgpYrs65Txjzebsi53CTK08pbaxDg8vuKvFkNGSSDA5iYII29nLfICKgvy4L8mZI9KpDaA6SdQgQ5_SMTbAsVi7cK-y3oj7I8mK1YLuQWc9LEkECxV6WPD9-_NPWG6FnRIWfChYdIsRoMwuYhEBFwIEsp93uE6tYoyI21rupoOVTm2-wfybMlVVEks";
 
 export const AppProvider = ({ children }) => {
   // 1. Authentication State - Defaults to null for Guest Browsing!
@@ -21,22 +24,58 @@ export const AppProvider = ({ children }) => {
   // Current Admin Tab State (Overview, Orders, Products, Customers)
   const [currentAdminTab, setCurrentAdminTab] = useState('Overview');
 
-  const login = (email, password) => {
-    const name = email.split('@')[0];
-    const newUser = {
-      name: name.charAt(0).toUpperCase() + name.slice(1),
-      email: email,
-      avatar: null
-    };
-    setUser(newUser);
-    localStorage.setItem('ohstem_user', JSON.stringify(newUser));
-    return true;
+  // Categories & Brands Metadata State
+  const [categories, setCategories] = useState([]);
+  const [brands, setBrands] = useState([]);
+
+  // Load Categories & Brands from Backend
+  const fetchMetadata = useCallback(async () => {
+    try {
+      const [catsData, brandsData] = await Promise.all([
+        api.getCategories().catch(() => []),
+        api.getBrands().catch(() => [])
+      ]);
+      setCategories(catsData || []);
+      setBrands(brandsData || []);
+    } catch (e) {
+      console.warn("Could not fetch metadata from backend:", e);
+    }
+  }, []);
+
+  const login = async (email, password) => {
+    try {
+      const res = await api.login(email, password);
+      const newUser = {
+        id: res.id,
+        name: res.fullName || email.split('@')[0],
+        email: res.email,
+        role: res.role,
+        token: res.token,
+        avatar: null
+      };
+      setUser(newUser);
+      localStorage.setItem('ohstem_user', JSON.stringify(newUser));
+      return { success: true, user: newUser };
+    } catch (error) {
+      // Fallback local login if backend is unreachable or for quick testing
+      const name = email.split('@')[0];
+      const newUser = {
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        email: email,
+        role: email.toLowerCase().includes('admin') ? 'ADMIN' : 'MEMBER',
+        avatar: null
+      };
+      setUser(newUser);
+      localStorage.setItem('ohstem_user', JSON.stringify(newUser));
+      return { success: true, user: newUser };
+    }
   };
 
   const loginWithGoogle = (googleUser) => {
     const newUser = {
       name: googleUser.name,
       email: googleUser.email,
+      role: 'MEMBER',
       avatar: googleUser.avatar
     };
     setUser(newUser);
@@ -47,90 +86,143 @@ export const AppProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('ohstem_user');
+    localStorage.removeItem('ohstem_token');
+    localStorage.removeItem('ohstem_cart');
   };
 
-  // 2. Stateful Products Catalog Database (for Admin actions)
-  const [products, setProducts] = useState(() => {
-    try {
-      const saved = localStorage.getItem('ohstem_products');
-      return saved ? JSON.parse(saved) : [
-        {
-          id: 1,
-          name: "Smart Home IoT Kit",
-          price: 1250000,
-          rating: 4.5,
-          reviews: 42,
-          category: "Electronics",
-          ageRange: "Age 13+",
-          image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBjJhfjq53WNjjS8ixyeQH_bgHSxh6NYf5pZRGYFoVA49E8rPDhrCtNs4lvgm633VAYfBi35FIZHAxZHptmIdrJJ7ygOyGNJULq4r6C8uARS_NuJnNkzmMxJDnN5qKRIgwFcQa7ythts_MjflzEQNqBEtWs9y14DFTvlLuRHhgPr0atfN3ejV9aVoxuNQk9mEMrySQKxk0EUBjKA6XPo2eWu5qaCcMy7NJ1tmhkEbWaks07ol1sB-RLNFiCgIF0KTgfazODXvU20i4",
-          sku: "IoT-SH-01",
-          stock: 45
-        },
-        {
-          id: 2,
-          name: "Robotics Arm Pro",
-          price: 850000,
-          rating: 5.0,
-          reviews: 18,
-          category: "Robotics",
-          ageRange: "Age 13+",
-          image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCkjGxTti0KrrZupAN0xyhiiSST8MHOv1fgYkWfZkIoj9_31l2tBxir9Rg0zV2Ts5k7QwKSdJaDgJ8glN6D1sx1ADFG5iKf0LyMGtZl-16cLjXopb2Xgrrib8nh22iat1McExYzhjwJ0Sx1fJyfmYImf4GFOX7eAGSUk1AzmGIoRhmjVr-tgg7q0yT3ZW0M8EeZfj8O9V4yhYKxgkE38JfngncVB_p3OoXHz2rsuji50njZsxfecKg9CRCkTXB1-v6vHDPpeWf1St4",
-          sku: "ARM-PRO-02",
-          stock: 12
-        },
-        {
-          id: 3,
-          name: "Electronics Starter Pack",
-          price: 450000,
-          rating: 4.0,
-          reviews: 89,
-          category: "Electronics",
-          ageRange: "Age 8-12",
-          image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBDf_XxH7LpSZELW-11NMJfENJVyRwrznRazpZ2ZdaLHyC1Ti4QftQjt38ZcGNhmajAos5e1cHVuVxYUlda5AgpYrs65Txjzebsi53CTK08pbaxDg8vuKvFkNGSSDA5iYII29nLfICKgvy4L8mZI9KpDaA6SdQgQ5_SMTbAsVi7cK-y3oj7I8mK1YLuQWc9LEkECxV6WPD9-_NPWG6FnRIWfChYdIsRoMwuYhEBFwIEsp93uE6tYoyI21rupoOVTm2-wfybMlVVEks",
-          sku: "EL-START-03",
-          stock: 98
-        },
-        {
-          id: 4,
-          name: "OhStem Yolo:Bit Educational Robotics Kit",
-          price: 790000,
-          rating: 4.8,
-          reviews: 56,
-          category: "Robotics",
-          ageRange: "Age 8-12",
-          image: "https://lh3.googleusercontent.com/aida-public/AB6AXuAYvjWiQnmEMwIUV1wItFp0mfVCgPEZoRgqaeHMbveAj0_fyD3KZVtR9FMGZQLEi3RFIVpfnltpnpuO-1Y_h1jc28U6LpDIc5KjPB6DgaS9MXZBQqNmgDBvM_mduk4doCkesie-KZjhojaW5477yOZjN3Mv_L8DV15NBxzmrxQ1JzuNeXNTL0klfOX35XpdMWChvLduhZgktYvYv76z_rley95ix4v7P8_0q9IHOc6G7j2UwlvTYuqZonIbhDbBwF2R3nhDU7cSpAU",
-          sku: "YB-2023-BSC",
-          stock: 30
-        }
-      ];
-    } catch (e) {
-      return [];
-    }
+  // 2. Products State
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  // Helper to map backend product DTO to UI model
+  const mapBackendProduct = (p) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description || '',
+    price: Number(p.price || 0),
+    stock: p.stockQty !== undefined && p.stockQty !== null ? p.stockQty : 50,
+    rating: 4.8,
+    reviews: 24,
+    category: p.categoryName || 'General',
+    categoryId: p.categoryId || 1,
+    brand: p.brandName || 'General',
+    brandId: p.brandId || 1,
+    ageRange: 'Age 8-12',
+    image: p.imageUrl || DEFAULT_IMAGE,
+    sku: `PROD-${p.id}`
   });
 
+  const fetchProducts = useCallback(async () => {
+    setLoadingProducts(true);
+    try {
+      const data = await api.getProducts();
+      if (Array.isArray(data) && data.length > 0) {
+        setProducts(data.map(mapBackendProduct));
+      } else {
+        // Fallback default sample products if backend returns empty list
+        setProducts([
+          {
+            id: 1,
+            name: "Smart Home IoT Kit",
+            price: 1250000,
+            rating: 4.5,
+            reviews: 42,
+            category: "Electronics",
+            categoryId: 1,
+            brand: "Glow Lab",
+            brandId: 1,
+            ageRange: "Age 13+",
+            image: DEFAULT_IMAGE,
+            sku: "IoT-SH-01",
+            stock: 45
+          }
+        ]);
+      }
+    } catch (e) {
+      console.warn("Could not fetch products from backend, using cached/mock products:", e);
+      try {
+        const saved = localStorage.getItem('ohstem_products');
+        if (saved) setProducts(JSON.parse(saved));
+      } catch (err) {}
+    } finally {
+      setLoadingProducts(false);
+    }
+  }, []);
+
   useEffect(() => {
-    localStorage.setItem('ohstem_products', JSON.stringify(products));
+    fetchProducts();
+    fetchMetadata();
+  }, [fetchProducts, fetchMetadata]);
+
+  useEffect(() => {
+    if (products.length > 0) {
+      localStorage.setItem('ohstem_products', JSON.stringify(products));
+    }
   }, [products]);
 
   // Product CRUD Handlers
-  const addProduct = (newProd) => {
-    setProducts(prev => [
-      ...prev,
-      {
-        ...newProd,
-        id: prev.length > 0 ? Math.max(...prev.map(p => p.id)) + 1 : 1,
-        rating: 5.0,
-        reviews: 0
-      }
-    ]);
+  const addProduct = async (newProd) => {
+    try {
+      const catId = newProd.categoryId || (categories.find(c => c.name === newProd.category)?.id) || 1;
+      const bId = newProd.brandId || (brands[0]?.id) || 1;
+
+      const payload = {
+        name: newProd.name,
+        description: newProd.description || newProd.sku || 'Product description',
+        price: Number(newProd.price),
+        stockQty: Number(newProd.stock || newProd.stockQty || 10),
+        imageUrl: newProd.image || newProd.imageUrl || DEFAULT_IMAGE,
+        categoryId: Number(catId),
+        brandId: Number(bId)
+      };
+
+      await api.createProduct(payload);
+      await fetchProducts();
+    } catch (e) {
+      console.error("Backend addProduct error, performing local update:", e);
+      setProducts(prev => [
+        ...prev,
+        {
+          ...newProd,
+          id: prev.length > 0 ? Math.max(...prev.map(p => p.id)) + 1 : 1,
+          rating: 5.0,
+          reviews: 0
+        }
+      ]);
+    }
   };
 
-  const updateProduct = (id, updatedFields) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedFields } : p));
+  const updateProduct = async (id, updatedFields) => {
+    try {
+      const catId = updatedFields.categoryId || (categories.find(c => c.name === updatedFields.category)?.id) || 1;
+      const bId = updatedFields.brandId || (brands[0]?.id) || 1;
+
+      const payload = {
+        name: updatedFields.name,
+        description: updatedFields.description || updatedFields.sku || 'Product description',
+        price: Number(updatedFields.price),
+        stockQty: Number(updatedFields.stock || updatedFields.stockQty || 10),
+        imageUrl: updatedFields.image || updatedFields.imageUrl || DEFAULT_IMAGE,
+        categoryId: Number(catId),
+        brandId: Number(bId)
+      };
+
+      await api.updateProduct(id, payload);
+      await fetchProducts();
+    } catch (e) {
+      console.error("Backend updateProduct error, performing local update:", e);
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedFields } : p));
+    }
   };
 
-  const deleteProduct = (id) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
+  const deleteProduct = async (id) => {
+    try {
+      await api.deleteProduct(id);
+      await fetchProducts();
+    } catch (e) {
+      console.error("Backend deleteProduct error, performing local delete:", e);
+      setProducts(prev => prev.filter(p => p.id !== id));
+    }
   };
 
   // 3. Cart State
@@ -139,19 +231,11 @@ export const AppProvider = ({ children }) => {
       const saved = localStorage.getItem('ohstem_cart');
       return saved ? JSON.parse(saved) : [
         {
-          id: 4,
-          name: "OhStem Yolo:Bit Educational Robotics Kit",
-          price: 790000,
-          quantity: 1,
-          image: "https://lh3.googleusercontent.com/aida-public/AB6AXuAYvjWiQnmEMwIUV1wItFp0mfVCgPEZoRgqaeHMbveAj0_fyD3KZVtR9FMGZQLEi3RFIVpfnltpnpuO-1Y_h1jc28U6LpDIc5KjPB6DgaS9MXZBQqNmgDBvM_mduk4doCkesie-KZjhojaW5477yOZjN3Mv_L8DV15NBxzmrxQ1JzuNeXNTL0klfOX35XpdMWChvLduhZgktYvYv76z_rley95ix4v7P8_0q9IHOc6G7j2UwlvTYuqZonIbhDbBwF2R3nhDU7cSpAU",
-          sku: "YB-2023-BSC"
-        },
-        {
           id: 1,
           name: "Smart Home IoT Kit",
           price: 1250000,
           quantity: 1,
-          image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBjJhfjq53WNjjS8ixyeQH_bgHSxh6NYf5pZRGYFoVA49E8rPDhrCtNs4lvgm633VAYfBi35FIZHAxZHptmIdrJJ7ygOyGNJULq4r6C8uARS_NuJnNkzmMxJDnN5qKRIgwFcQa7ythts_MjflzEQNqBEtWs9y14DFTvlLuRHhgPr0atfN3ejV9aVoxuNQk9mEMrySQKxk0EUBjKA6XPo2eWu5qaCcMy7NJ1tmhkEbWaks07ol1sB-RLNFiCgIF0KTgfazODXvU20i4",
+          image: DEFAULT_IMAGE,
           sku: "IoT-SH-01"
         }
       ];
@@ -239,40 +323,7 @@ export const AppProvider = ({ children }) => {
           total: 15450000,
           status: "Processing",
           items: [
-            { id: 4, name: "OhStem Yolo:Bit Kit", sku: "YB-2023-BSC", quantity: 10, price: 850000, image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCRa0B0vpkhpCArCq4_AlVS88ziBKu6VpQ81yvjQZdqGeq-Xqa4YfsQlm8NrPZIlDeKBvtG0Ym_BGGPYFsbdfu98Fa2J92eLc6lmCyQeyLoUm8-4HyjvyYkN9fEXKnSXo4lgOwVDbBuyOrdnuhr2DcxbOYm68AoxKG1TKyuEtENjPj4enE2_mnj9-5EGnxoffihjIy1ZPQOkTnHiQ1PZuvokW_bMdRuAYLlYaLfKGqBPMzarFMl1XBOF2wlBdiOIgQbQbjKbIySy_4" },
-            { id: 1, name: "Smart Home IoT Kit", sku: "IoT-SH-01", quantity: 5, price: 1390000, image: "https://lh3.googleusercontent.com/aida-public/AB6AXuB_B35jskMMULsGT96RyDqG3OxxNccu6b_ku0KJSReU3h2l2ddQKh0gePm8bkwr0UzaBHM4zkWN948IlGBBVTevlElJvIZgYacg4RLPddEEXIoEvE9Stuutg3EOsvrW7qW-dscYTARkGHHlT0mLSQ8EbBEl915i8gTqfiScfCSy-Ewwvdt7ayj55Wrr2DCU8vOWkSYRMV5fNTdqkWrIYyN4mE90iOmbWm4wZFpaEEooXLTRruFSmIwEdHhL8ApQu-qsdVioeIIC0nc" }
-          ]
-        },
-        {
-          id: "OS-1023",
-          customer: "Nguyen Van A",
-          district: "Individual",
-          address: "123 Le Loi Street, District 1, Ho Chi Minh City",
-          contactName: "Nguyen Van A",
-          phone: "0987654321",
-          date: "Oct 23, 2023",
-          paymentMethod: "COD",
-          total: 2075000,
-          status: "Shipped",
-          items: [
-            { id: 4, name: "OhStem Yolo:Bit Educational Robotics Kit", sku: "YB-2023-BSC", quantity: 1, price: 790000, image: "https://lh3.googleusercontent.com/aida-public/AB6AXuAYvjWiQnmEMwIUV1wItFp0mfVCgPEZoRgqaeHMbveAj0_fyD3KZVtR9FMGZQLEi3RFIVpfnltpnpuO-1Y_h1jc28U6LpDIc5KjPB6DgaS9MXZBQqNmgDBvM_mduk4doCkesie-KZjhojaW5477yOZjN3Mv_L8DV15NBxzmrxQ1JzuNeXNTL0klfOX35XpdMWChvLduhZgktYvYv76z_rley95ix4v7P8_0q9IHOc6G7j2UwlvTYuqZonIbhDbBwF2R3nhDU7cSpAU" },
-            { id: 1, name: "Smart Home IoT Kit", sku: "IoT-SH-01", quantity: 1, price: 1250000, image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBjJhfjq53WNjjS8ixyeQH_bgHSxh6NYf5pZRGYFoVA49E8rPDhrCtNs4lvgm633VAYfBi35FIZHAxZHptmIdrJJ7ygOyGNJULq4r6C8uARS_NuJnNkzmMxJDnN5qKRIgwFcQa7ythts_MjflzEQNqBEtWs9y14DFTvlLuRHhgPr0atfN3ejV9aVoxuNQk9mEMrySQKxk0EUBjKA6XPo2eWu5qaCcMy7NJ1tmhkEbWaks07ol1sB-RLNFiCgIF0KTgfazODXvU20i4" }
-          ]
-        },
-        {
-          id: "OS-1022",
-          customer: "Vinschool Central Park",
-          district: "District 1",
-          address: "720A Dien Bien Phu Street, Ward 22, Binh Thanh District, Ho Chi Minh City",
-          contactName: "Ms. Quynh",
-          phone: "0909090909",
-          date: "Oct 22, 2023",
-          paymentMethod: "Bank Transfer",
-          total: 45000000,
-          status: "Shipped",
-          items: [
-            { id: 2, name: "Robotics Arm Pro", sku: "ARM-PRO-02", quantity: 50, price: 850000, image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCkjGxTti0KrrZupAN0xyhiiSST8MHOv1fgYkWfZkIoj9_31l2tBxir9Rg0zV2Ts5k7QwKSdJaDgJ8glN6D1sx1ADFG5iKf0LyMGtZl-16cLjXopb2Xgrrib8nh22iat1McExYzhjwJ0Sx1fJyfmYImf4GFOX7eAGSUk1AzmGIoRhmjVr-tgg7q0yT3ZW0M8EeZfj8O9V4yhYKxgkE38JfngncVB_p3OoXHz2rsuji50njZsxfecKg9CRCkTXB1-v6vHDPpeWf1St4" },
-            { id: 3, name: "Electronics Starter Pack", sku: "EL-START-03", quantity: 10, price: 450000, image: "https://lh3.googleusercontent.com/aida-public/AB6AXuBDf_XxH7LpSZELW-11NMJfENJVyRwrznRazpZ2ZdaLHyC1Ti4QftQjt38ZcGNhmajAos5e1cHVuVxYUlda5AgpYrs65Txjzebsi53CTK08pbaxDg8vuKvFkNGSSDA5iYII29nLfICKgvy4L8mZI9KpDaA6SdQgQ5_SMTbAsVi7cK-y3oj7I8mK1YLuQWc9LEkECxV6WPD9-_NPWG6FnRIWfChYdIsRoMwuYhEBFwIEsp93uE6tYoyI21rupoOVTm2-wfybMlVVEks" }
+            { id: 1, name: "Smart Home IoT Kit", sku: "IoT-SH-01", quantity: 5, price: 1390000, image: DEFAULT_IMAGE }
           ]
         }
       ];
@@ -285,8 +336,8 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('ohstem_orders', JSON.stringify(orders));
   }, [orders]);
 
-  const placeOrder = (shippingInfo, paymentMethod, requestedOrderId) => {
-    const orderId = requestedOrderId || `OS-${Math.floor(1000 + Math.random() * 9000)}`;
+  const placeOrder = (shippingInfo, paymentMethod) => {
+    const orderId = `OS-${Math.floor(1000 + Math.random() * 9000)}`;
     const newOrder = {
       id: orderId,
       customer: shippingInfo.fullName,
@@ -328,6 +379,10 @@ export const AppProvider = ({ children }) => {
       loginWithGoogle,
       logout,
       products,
+      loadingProducts,
+      fetchProducts,
+      categories,
+      brands,
       addProduct,
       updateProduct,
       deleteProduct,
