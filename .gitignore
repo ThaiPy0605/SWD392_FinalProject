@@ -14,3 +14,8 @@
 
 # Env
 .env
+
+# Frontend dependencies and build output
+node_modules/
+FE/node_modules/
+FE/dist/

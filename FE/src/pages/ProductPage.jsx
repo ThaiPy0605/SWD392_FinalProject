@@ -1,229 +1,171 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import Pagination from '../components/catalog/Pagination';
 
-const ProductPage = ({ searchQuery }) => {
+const PRODUCTS_PER_PAGE = 3;
+
+const ProductPage = ({ searchQuery, selectedFilter, maxPrice }) => {
   const { products, addToCart } = useApp();
-  
-  // State for Filters
-  const [selectedFilter, setSelectedFilter] = useState('All');
-  const [maxPrice, setMaxPrice] = useState(2000000); // 2 Million Max Range
-  const [addedItemNotifications, setAddedItemNotifications] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [addedProductId, setAddedProductId] = useState(null);
 
-  // Filter Categories
-  const categories = [
-    { name: 'All Products', icon: 'category', value: 'All' },
-    { name: 'Robotics', icon: 'precision_manufacturing', value: 'Robotics' },
-    { name: 'Electronics', icon: 'memory', value: 'Electronics' },
-    { name: 'Age 8-12', icon: 'child_care', value: 'Age 8-12' },
-    { name: 'Age 13+', icon: 'school', value: 'Age 13+' }
-  ];
+  const filteredProducts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return products.filter((product) => {
+      const matchesGroup =
+        selectedFilter === 'All' ||
+        product.category === selectedFilter ||
+        product.ageRange === selectedFilter;
+      const matchesPrice = product.price <= maxPrice;
+      const matchesSearch =
+        !query ||
+        product.name.toLowerCase().includes(query) ||
+        product.category.toLowerCase().includes(query) ||
+        product.sku.toLowerCase().includes(query);
 
-  // Handle Add To Cart with micro feedback
+      return matchesGroup && matchesPrice && matchesSearch;
+    });
+  }, [products, searchQuery, selectedFilter, maxPrice]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedFilter, maxPrice]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
+  const visibleProducts = filteredProducts.slice(
+    (currentPage - 1) * PRODUCTS_PER_PAGE,
+    currentPage * PRODUCTS_PER_PAGE,
+  );
+
   const handleAddToCart = (product) => {
-    if (addToCart) {
-      addToCart(product);
-    }
-    
-    // Trigger temporary button text notification
-    setAddedItemNotifications(prev => ({ ...prev, [product.id]: true }));
-    setTimeout(() => {
-      setAddedItemNotifications(prev => ({ ...prev, [product.id]: false }));
-    }, 2000);
+    addToCart(product);
+    setAddedProductId(product.id);
+    window.setTimeout(() => setAddedProductId(null), 1600);
   };
 
-  // Filtered Products Memo
-  const filteredProducts = useMemo(() => {
-    const list = products || [];
-    return list.filter(product => {
-      // 1. Category / Age cohort filter
-      if (selectedFilter !== 'All') {
-        if (selectedFilter === 'Robotics' || selectedFilter === 'Electronics') {
-          if (product.category !== selectedFilter) return false;
-        } else {
-          // AgeCohort filters
-          if (product.ageRange !== selectedFilter) return false;
-        }
-      }
-      
-      // 2. Price filter
-      if (product.price > maxPrice) return false;
-
-      // 3. Search query filter
-      if (searchQuery) {
-        return product.name.toLowerCase().includes(searchQuery.toLowerCase());
-      }
-
-      return true;
-    });
-  }, [products, selectedFilter, maxPrice, searchQuery]);
+  const featuredProduct = products.find((product) => product.id === 4) || products[0];
 
   return (
-    <div className="max-w-container-max mx-auto px-sm md:px-gutter py-md grid grid-cols-1 lg:grid-cols-12 gap-gutter">
-      {/* SideNavBar - Filters */}
-      <aside className="col-span-12 lg:col-span-3 bg-surface-container-low dark:bg-inverse-surface border-r border-outline-variant/30 hidden lg:flex flex-col gap-xs p-sm sticky top-[80px] h-[calc(100vh-100px)] overflow-y-auto rounded-lg">
-        <div className="mb-4">
-          <h2 className="font-headline-md text-headline-md text-primary">Filters</h2>
-          <p className="font-label-sm text-label-sm text-on-surface-variant">Refine your search</p>
-        </div>
-        
-        <nav className="flex flex-col gap-1">
-          {categories.map((cat) => {
-            const isActive = selectedFilter === cat.value;
-            return (
-              <button
-                key={cat.value}
-                onClick={() => setSelectedFilter(cat.value)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg font-label-md text-label-md transition-all duration-200 ease-in-out text-left ${
-                  isActive 
-                    ? 'bg-secondary-container text-on-secondary-container font-bold shadow-sm' 
-                    : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
-                }`}
-              >
-                <span className="material-symbols-outlined">{cat.icon}</span>
-                {cat.name}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Price Slider */}
-        <div className="mt-8 border-t border-outline-variant/30 pt-4">
-          <h3 className="font-label-md text-label-md font-bold mb-3">Price Range</h3>
-          <input 
-            type="range" 
-            min="300000" 
-            max="2000000" 
-            step="50000"
-            value={maxPrice}
-            onChange={(e) => setMaxPrice(Number(e.target.value))}
-            className="w-full h-2 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-secondary"
-          />
-          <div className="flex justify-between text-label-sm text-on-surface-variant mt-2 font-semibold">
-            <span>300,000 ₫</span>
-            <span className="text-secondary">{maxPrice.toLocaleString()} ₫</span>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <div className="col-span-12 lg:col-span-9 flex flex-col gap-lg">
-        {/* Mobile Filters Navigation Bar */}
-        <div className="lg:hidden flex flex-wrap gap-2 bg-surface-container-low p-2 rounded-lg border border-outline-variant/30">
-          {categories.map((cat) => {
-            const isActive = selectedFilter === cat.value;
-            return (
-              <button
-                key={cat.value}
-                onClick={() => setSelectedFilter(cat.value)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-label-sm text-[12px] transition-all duration-150 ${
-                  isActive 
-                    ? 'bg-secondary text-on-secondary' 
-                    : 'bg-white text-on-surface-variant border border-outline-variant/50'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[16px]">{cat.icon}</span>
-                {cat.name}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Hero Banner */}
-        <div className="relative bg-surface-container-low rounded-xl overflow-hidden shadow-sm border border-outline-variant/30 flex flex-col md:flex-row items-center">
-          <div className="p-8 md:w-1/2 z-10">
-            <span className="inline-block px-3 py-1 bg-primary-container text-on-primary font-label-sm text-label-sm rounded-full mb-4">New Release</span>
-            <h1 className="font-display-lg text-display-lg text-primary mb-4">New Yolo:Bit Starter Kit</h1>
-            <p className="font-body-lg text-body-lg text-on-surface-variant mb-6">
-              Empower the next generation of innovators with our latest comprehensive robotics kit. Perfect for classroom and home learning.
-            </p>
-            <button 
-              onClick={() => {
-                const yoloBit = (products || []).find(p => p.id === 4);
-                if (yoloBit) handleAddToCart(yoloBit);
-              }}
-              className="bg-primary-container text-on-primary px-6 py-3 rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity font-semibold animate-bounce-subtle"
-            >
-              Shop Now
+    <div className="catalog-page">
+      <section className="catalog-hero" aria-labelledby="catalog-title">
+        <div className="catalog-hero__glow parallax-layer--back" aria-hidden="true" />
+        <div className="catalog-hero__content parallax-layer--front">
+          <span className="hero-kicker">
+            <span className="material-symbols-outlined" aria-hidden="true">bolt</span>
+            New classroom series
+          </span>
+          <h1 id="catalog-title">Small kits.<br />Big ideas.</h1>
+          <p>
+            Hands-on robotics and electronics that turn curiosity into
+            real-world engineering skills.
+          </p>
+          <div className="catalog-hero__actions">
+            <button type="button" onClick={() => handleAddToCart(featuredProduct)}>
+              Explore the Yolo:Bit kit
+              <span className="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
             </button>
+            <span>Designed in Vietnam · Classroom ready</span>
           </div>
-          <div 
-            className="w-full md:w-1/2 h-64 md:h-full min-h-[300px] bg-cover bg-center" 
-            style={{ 
-              backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuA5neTvB9hvfJq59QAbSkf-exOVlJhIOn0_zAnaNgv-vnHfXdr7G_p66ey3xyCEo-r3VR0C7oJCrmt6WQyn0BT9Pu3LlILY5dByiehun7PcNrWvc8rhQHxahhSi4vsEvvh-ZraFOFToPWwBdYFEjRROp2lfdFZU7167RZ9ELpa4xRweRzfhqnURu9aRH2ftwLSl5UC0OPfzFO4BKsuRTmhkxMPoPEPOl0HGPJ5HnZ1cu42dCehebYb_z0YyBQVM6j2a8fI_KH5hDY8')` 
-            }}
-          ></div>
+        </div>
+        <div className="catalog-hero__visual parallax-layer--back" aria-hidden="true">
+          <div className="hero-orbit hero-orbit--one" />
+          <div className="hero-orbit hero-orbit--two" />
+          <img src={featuredProduct?.image} alt="" />
+          <div className="hero-stat">
+            <strong>50+</strong>
+            <span>guided projects</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="catalog-section" aria-labelledby="products-heading">
+        <div className="catalog-section__heading">
+          <div>
+            <span className="eyebrow">Curated for makers</span>
+            <h2 id="products-heading">Learning starts with building</h2>
+          </div>
+          <div className="catalog-result-count" aria-live="polite">
+            <span>{filteredProducts.length}</span>
+            {filteredProducts.length === 1 ? ' product' : ' products'}
+          </div>
         </div>
 
-        {/* Product Grid */}
-        <div>
-          {filteredProducts.length === 0 ? (
-            <div className="text-center py-xl bg-white border border-outline-variant/20 rounded-xl shadow-sm">
-              <span className="material-symbols-outlined text-outline text-6xl mb-4">sentiment_dissatisfied</span>
-              <p className="text-body-lg text-on-surface-variant">No products match your filter criteria.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-md">
-              {filteredProducts.map((product) => (
-                <div 
-                  key={product.id}
-                  className="bg-surface-container-lowest rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-outline-variant/30 overflow-hidden flex flex-col group hover:-translate-y-1"
-                >
-                  <div className="relative overflow-hidden h-48 bg-surface-container-low flex items-center justify-center">
-                    <img 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                      src={product.image}
-                      alt={product.name}
-                    />
-                  </div>
-                  <div className="p-4 flex flex-col flex-1">
-                    <h3 className="font-headline-md text-headline-lg-mobile text-on-surface mb-2 min-h-[48px] line-clamp-2 leading-snug">
-                      {product.name}
-                    </h3>
-                    
-                    {/* Review stars */}
-                    <div className="flex items-center mb-2">
-                      {Array.from({ length: 5 }).map((_, i) => {
-                        const starNum = i + 1;
-                        const isHalf = product.rating >= starNum - 0.5 && product.rating < starNum;
-                        const isFilled = product.rating >= starNum;
-                        return (
-                          <span 
-                            key={i} 
-                            className={`material-symbols-outlined text-warning-amber text-sm ${isFilled ? 'fill-1' : ''}`}
-                            style={{ fontVariationSettings: isFilled ? "'FILL' 1" : "" }}
-                          >
-                            {isHalf ? 'star_half' : isFilled ? 'star' : 'star_outline'}
-                          </span>
-                        );
-                      })}
-                      <span className="text-label-sm text-on-surface-variant ml-1 font-semibold">({product.reviews})</span>
+        {visibleProducts.length === 0 ? (
+          <div className="catalog-empty" role="status">
+            <span className="material-symbols-outlined" aria-hidden="true">search_off</span>
+            <h3>No matching kits</h3>
+            <p>Try a different search, category, or price range.</p>
+          </div>
+        ) : (
+          <>
+            <div className="product-grid">
+              {visibleProducts.map((product) => {
+                const wasAdded = addedProductId === product.id;
+                return (
+                  <article className="product-card" key={product.id}>
+                    <div className="product-card__media">
+                      <span className="product-card__category">{product.category}</span>
+                      <img src={product.image} alt={product.name} />
+                      <button type="button" aria-label={`Save ${product.name} to favorites`}>
+                        <span className="material-symbols-outlined" aria-hidden="true">favorite</span>
+                      </button>
                     </div>
-
-                    <p className="font-headline-md text-headline-md text-secondary mb-4 mt-auto font-bold">
-                      {product.price.toLocaleString()} ₫
-                    </p>
-
-                    {/* Add to Cart button */}
-                    <button 
-                      onClick={() => handleAddToCart(product)}
-                      className={`w-full py-2.5 rounded-lg font-label-md text-label-md transition-all flex justify-center items-center gap-2 font-semibold ${
-                        addedItemNotifications[product.id]
-                          ? 'bg-secondary text-white'
-                          : 'bg-primary-container text-on-primary hover:opacity-90'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        {addedItemNotifications[product.id] ? 'check' : 'add_shopping_cart'}
-                      </span> 
-                      {addedItemNotifications[product.id] ? 'Added!' : 'Add to Cart'}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                    <div className="product-card__body">
+                      <div className="product-card__meta">
+                        <span>{product.ageRange}</span>
+                        <span>
+                          <span className="material-symbols-outlined" aria-hidden="true">star</span>
+                          {product.rating} ({product.reviews})
+                        </span>
+                      </div>
+                      <h3>{product.name}</h3>
+                      <p className="product-card__sku">SKU {product.sku}</p>
+                      <div className="product-card__footer">
+                        <strong>{product.price.toLocaleString()} ₫</strong>
+                        <button
+                          type="button"
+                          className={wasAdded ? 'is-added' : ''}
+                          onClick={() => handleAddToCart(product)}
+                          aria-label={`Add ${product.name} to cart`}
+                        >
+                          <span className="material-symbols-outlined" aria-hidden="true">
+                            {wasAdded ? 'check' : 'add'}
+                          </span>
+                          {wasAdded ? 'Added' : 'Add'}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
-          )}
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={(page) => {
+                setCurrentPage(page);
+                document.getElementById('products-heading')?.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'start',
+                });
+              }}
+            />
+          </>
+        )}
+      </section>
+
+      <section className="catalog-band" id="schools">
+        <div>
+          <span className="eyebrow">For schools & educators</span>
+          <h2>Build a lab students remember.</h2>
         </div>
-      </div>
+        <p>Flexible classroom packs, lesson plans, and local educator support—all in one program.</p>
+        <a href="mailto:education@ohstem.vn">
+          Talk to our education team
+          <span className="material-symbols-outlined" aria-hidden="true">north_east</span>
+        </a>
+      </section>
     </div>
   );
 };

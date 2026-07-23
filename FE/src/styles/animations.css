@@ -1,0 +1,53 @@
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes parallax-back {
+  from { transform: perspective(1000px) translateZ(-70px) scale(1.09) translateY(0); }
+  to { transform: perspective(1000px) translateZ(-70px) scale(1.09) translateY(120px); }
+}
+
+@keyframes parallax-front {
+  from { transform: perspective(1000px) translateZ(30px) scale(0.97) translateY(0); }
+  to { transform: perspective(1000px) translateZ(30px) scale(0.97) translateY(-42px); }
+}
+
+.animate-fade-in {
+  animation: fade-up 420ms ease both;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #eef2f1 25%, #f8faf9 45%, #eef2f1 65%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.35s ease-in-out infinite;
+}
+
+@supports (animation-timeline: scroll()) {
+  .parallax-layer--back {
+    animation: parallax-back linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 720px;
+  }
+
+  .parallax-layer--front {
+    animation: parallax-front linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 720px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
