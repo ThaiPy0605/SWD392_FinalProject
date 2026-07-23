@@ -285,8 +285,8 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('ohstem_orders', JSON.stringify(orders));
   }, [orders]);
 
-  const placeOrder = (shippingInfo, paymentMethod) => {
-    const orderId = `OS-${Math.floor(1000 + Math.random() * 9000)}`;
+  const placeOrder = (shippingInfo, paymentMethod, requestedOrderId) => {
+    const orderId = requestedOrderId || `OS-${Math.floor(1000 + Math.random() * 9000)}`;
     const newOrder = {
       id: orderId,
       customer: shippingInfo.fullName,
