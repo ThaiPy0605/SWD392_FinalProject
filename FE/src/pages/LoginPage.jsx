@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { login, loginWithGoogle } = useApp();
+  const { login } = useApp();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,7 +34,11 @@ const LoginPage = () => {
 
     try {
       const result = await login(email, password);
-      const userRole = result?.user?.role || (email.toLowerCase().includes('admin') ? 'ADMIN' : 'MEMBER');
+      if (!result?.success) {
+        setError(result?.message || 'Invalid email or password.');
+        return;
+      }
+      const userRole = result.user.role;
       if (userRole === 'ADMIN') {
         navigate('/admin');
       } else {
@@ -66,35 +70,12 @@ const LoginPage = () => {
       return;
     }
 
-    setEmail(registerForm.email);
-    setPassword('');
-    switchMode('login');
+    setRegisterError('Registration is not available yet because the backend does not provide a registration API.');
   };
 
   const updateRegisterField = (field, value) => {
     setRegisterForm((current) => ({ ...current, [field]: value }));
   };
-
-  const handleGoogleSignIn = () => {
-    const googleUserProfile = {
-      name: 'Tuan Phan',
-      email: 'tuanpt2109@gmail.com',
-      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDt-adpYatyvcvUgp1Mg-Hqzl0OHcf3bO68bPNNwh40gMqZzcR9RAEUu0CFpgmcJm17oMAcrdY14-jcwncBiqq1uks4gdNnWOf3oCMdR7BtZFQRk7tO95Ag0mu58NksCiJHIUbBAQ7D925I70hMwdEpYmZ7E9UALoxeFTnpALisH3mZlptx6My45BGa0g7MiRTqYjk_tZV2CLlBjBGAdgVBwovgqUEWrrXvsE-KkxmKt7jxC4gAh8njpLv_pfgQzllRH4FHcFeCLMU'
-    };
-
-    if (loginWithGoogle) {
-      loginWithGoogle(googleUserProfile);
-      navigate('/');
-    }
-  };
-
-  const handleMicrosoftMockLogin = async () => {
-    await login('admin@example.com', 'password1');
-    navigate('/admin');
-  };
-
-  const handleGoogleLogin = handleGoogleSignIn;
-  const handleAdminLogin = handleMicrosoftMockLogin;
 
   return (
     <main className={`login-page ${isRegister ? 'login-page--register' : 'login-page--signin'}`}>
@@ -309,14 +290,6 @@ const LoginPage = () => {
                 </button>
               </form>
 
-              <div className="login-divider"><span>or use quick access</span></div>
-              <div className="login-social">
-                <button type="button" onClick={handleGoogleLogin}><strong>G</strong>Google</button>
-                <button type="button" onClick={handleAdminLogin}>
-                  <span className="material-symbols-outlined" aria-hidden="true">admin_panel_settings</span>
-                  Admin demo
-                </button>
-              </div>
               <p className="login-card__footer">
                 New to OhStem?{' '}
                 <button type="button" onClick={() => switchMode('register')}>Create an account</button>

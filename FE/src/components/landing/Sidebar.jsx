@@ -1,11 +1,5 @@
 import React from 'react';
 
-const fallbackCategories = [
-  { name: 'Robotics' },
-  { name: 'Electronics' },
-  { name: 'STEM Kits' },
-];
-
 const categoryIcon = (name) => {
   if (name === 'Robotics') return 'precision_manufacturing';
   if (name === 'Electronics') return 'developer_board';
@@ -20,7 +14,7 @@ const Sidebar = ({
   maxPrice,
   onMaxPriceChange,
 }) => {
-  const availableCategories = categories?.length ? categories : fallbackCategories;
+  const availableCategories = categories || [];
   const options = [
     { label: 'All products', value: 'All', icon: 'grid_view' },
     ...availableCategories.map((category) => ({

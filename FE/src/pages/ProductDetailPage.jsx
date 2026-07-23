@@ -3,12 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import api from '../services/api';
 
-const DEFAULT_IMAGE = "https://lh3.googleusercontent.com/aida-public/AB6AXuBDf_XxH7LpSZELW-11NMJfENJVyRwrznRazpZ2ZdaLHyC1Ti4QftQjt38ZcGNhmajAos5e1cHVuVxYUlda5AgpYrs65Txjzebsi53CTK08pbaxDg8vuKvFkNGSSDA5iYII29nLfICKgvy4L8mZI9KpDaA6SdQgQ5_SMTbAsVi7cK-y3oj7I8mK1YLuQWc9LEkECxV6WPD9-_NPWG6FnRIWfChYdIsRoMwuYhEBFwIEsp93uE6tYoyI21rupoOVTm2-wfybMlVVEks";
-
 const ProductDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addToCart, products } = useApp();
+  const { addToCart } = useApp();
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30,24 +28,14 @@ const ProductDetailPage = () => {
             name: data.name,
             description: data.description || 'No description provided.',
             price: Number(data.price || 0),
-            stock: data.stockQty !== undefined && data.stockQty !== null ? data.stockQty : 50,
-            image: data.imageUrl || DEFAULT_IMAGE,
-            category: data.categoryName || 'General',
-            brand: data.brandName || 'General',
-            rating: 4.8,
-            reviews: 24,
-            sku: `PROD-${data.id}`
+            stock: Number(data.stockQty),
+            image: data.imageUrl || '',
+            category: data.categoryName || '',
+            brand: data.brandName || '',
           });
         }
       } catch (err) {
-        console.warn("Could not fetch product from backend, checking local context state:", err);
-        // Fallback check from AppContext products state
-        const found = (products || []).find(p => String(p.id) === String(id));
-        if (found) {
-          if (isMounted) setProduct(found);
-        } else {
-          if (isMounted) setError('Product not found or currently unavailable.');
-        }
+        if (isMounted) setError(err.message || 'Product not found or currently unavailable.');
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -58,7 +46,7 @@ const ProductDetailPage = () => {
     return () => {
       isMounted = false;
     };
-  }, [id, products]);
+  }, [id]);
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -131,11 +119,17 @@ const ProductDetailPage = () => {
         {/* Product Media Column */}
         <div className="col-span-12 lg:col-span-6 flex flex-col items-center">
           <div className="w-full h-80 md:h-[450px] bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant/30 flex items-center justify-center relative group">
-            <img 
-              src={product.image} 
-              alt={product.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-            />
+            {product.image ? (
+              <img
+                src={product.image}
+                alt={product.name}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+            ) : (
+              <span className="material-symbols-outlined text-6xl text-outline" aria-label="No product image">
+                image_not_supported
+              </span>
+            )}
             <span className="absolute top-4 left-4 bg-secondary text-on-secondary font-label-sm px-3 py-1 rounded-full shadow-sm font-bold">
               {product.category}
             </span>
@@ -149,29 +143,12 @@ const ProductDetailPage = () => {
               <span className="text-label-sm font-bold uppercase tracking-wider text-secondary bg-secondary-container px-2.5 py-1 rounded">
                 Brand: {product.brand}
               </span>
-              <span className="text-label-sm text-outline font-medium">SKU: {product.sku}</span>
+              <span className="text-label-sm text-outline font-medium">Product #{product.id}</span>
             </div>
 
             <h1 className="font-headline-lg text-headline-lg text-on-surface font-bold leading-snug mb-3">
               {product.name}
             </h1>
-
-            {/* Rating Stars */}
-            <div className="flex items-center gap-2 mb-4">
-              <div className="flex items-center">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <span 
-                    key={i} 
-                    className="material-symbols-outlined text-warning-amber text-lg"
-                    style={{ fontVariationSettings: "'FILL' 1" }}
-                  >
-                    star
-                  </span>
-                ))}
-              </div>
-              <span className="text-label-md font-bold text-on-surface">{product.rating}</span>
-              <span className="text-label-md text-on-surface-variant">({product.reviews} reviews)</span>
-            </div>
 
             {/* Price Display */}
             <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/20 mb-6 flex items-baseline gap-3">

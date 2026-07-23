@@ -7,7 +7,7 @@ import ProductSkeleton from '../components/catalog/ProductSkeleton';
 const PRODUCTS_PER_PAGE = 6;
 
 const ProductPage = ({ searchQuery, selectedFilter, maxPrice }) => {
-  const { products, loadingProducts, addToCart } = useApp();
+  const { products, productsError, loadingProducts, addToCart, fetchProducts } = useApp();
   const [currentPage, setCurrentPage] = useState(1);
   const [addedProductId, setAddedProductId] = useState(null);
 
@@ -22,7 +22,7 @@ const ProductPage = ({ searchQuery, selectedFilter, maxPrice }) => {
         product.name.toLowerCase().includes(query) ||
         product.category.toLowerCase().includes(query) ||
         product.brand.toLowerCase().includes(query) ||
-        product.sku.toLowerCase().includes(query);
+        product.description.toLowerCase().includes(query);
 
       return matchesCategory && matchesPrice && matchesSearch;
     });
@@ -98,6 +98,13 @@ const ProductPage = ({ searchQuery, selectedFilter, maxPrice }) => {
 
         {loadingProducts ? (
           <ProductSkeleton count={6} />
+        ) : productsError ? (
+          <div className="catalog-empty" role="alert">
+            <span className="material-symbols-outlined" aria-hidden="true">cloud_off</span>
+            <h3>Products could not be loaded</h3>
+            <p>{productsError}</p>
+            <button type="button" onClick={fetchProducts}>Try again</button>
+          </div>
         ) : visibleProducts.length === 0 ? (
           <div className="catalog-empty" role="status">
             <span className="material-symbols-outlined" aria-hidden="true">search_off</span>
@@ -129,14 +136,14 @@ const ProductPage = ({ searchQuery, selectedFilter, maxPrice }) => {
                       <div className="product-card__meta">
                         <span>{product.brand}</span>
                         <span>
-                          <span className="material-symbols-outlined" aria-hidden="true">star</span>
-                          {product.rating} ({product.reviews})
+                          <span className="material-symbols-outlined" aria-hidden="true">inventory_2</span>
+                          {product.stock} in stock
                         </span>
                       </div>
                       <h3>
                         <Link to={`/products/${product.id}`}>{product.name}</Link>
                       </h3>
-                      <p className="product-card__sku">SKU {product.sku}</p>
+                      <p className="product-card__sku">{product.category}</p>
                       <div className="product-card__footer">
                         <strong>{product.price.toLocaleString()} ₫</strong>
                         <button

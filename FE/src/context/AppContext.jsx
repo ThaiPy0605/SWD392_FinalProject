@@ -1,149 +1,100 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import api from '../services/api';
 
-const AppContext = createContext();
+const AppContext = createContext(null);
 
 export const useApp = () => useContext(AppContext);
 
-const DEFAULT_IMAGE = "https://lh3.googleusercontent.com/aida-public/AB6AXuBDf_XxH7LpSZELW-11NMJfENJVyRwrznRazpZ2ZdaLHyC1Ti4QftQjt38ZcGNhmajAos5e1cHVuVxYUlda5AgpYrs65Txjzebsi53CTK08pbaxDg8vuKvFkNGSSDA5iYII29nLfICKgvy4L8mZI9KpDaA6SdQgQ5_SMTbAsVi7cK-y3oj7I8mK1YLuQWc9LEkECxV6WPD9-_NPWG6FnRIWfChYdIsRoMwuYhEBFwIEsp93uE6tYoyI21rupoOVTm2-wfybMlVVEks";
+const mapBackendProduct = (product) => ({
+  id: product.id,
+  name: product.name,
+  description: product.description || '',
+  price: Number(product.price),
+  stock: Number(product.stockQty),
+  stockQty: Number(product.stockQty),
+  image: product.imageUrl || '',
+  imageUrl: product.imageUrl || '',
+  category: product.categoryName || '',
+  categoryId: product.categoryId,
+  brand: product.brandName || '',
+  brandId: product.brandId,
+});
 
 export const AppProvider = ({ children }) => {
-  // 1. Authentication State - Defaults to null for Guest Browsing!
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem('ohstem_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (parsed?.id && parsed?.email && parsed?.role) return parsed;
+      localStorage.removeItem('ohstem_user');
+      return null;
+    } catch {
       return null;
     }
   });
-
-  // Global Login Prompt modal trigger state
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-
-  // Current Admin Tab State (Overview, Orders, Products, Customers)
   const [currentAdminTab, setCurrentAdminTab] = useState('Overview');
 
-  // Categories & Brands Metadata State
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [metadataError, setMetadataError] = useState('');
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [productsError, setProductsError] = useState('');
 
-  // Load Categories & Brands from Backend
   const fetchMetadata = useCallback(async () => {
+    setMetadataError('');
     try {
-      const [catsData, brandsData] = await Promise.all([
-        api.getCategories().catch(() => []),
-        api.getBrands().catch(() => [])
+      const [categoryData, brandData] = await Promise.all([
+        api.getCategories(),
+        api.getBrands(),
       ]);
-      setCategories(catsData || []);
-      setBrands(brandsData || []);
-    } catch (e) {
-      console.warn("Could not fetch metadata from backend:", e);
+      setCategories(Array.isArray(categoryData) ? categoryData : []);
+      setBrands(Array.isArray(brandData) ? brandData : []);
+    } catch (error) {
+      setCategories([]);
+      setBrands([]);
+      setMetadataError(error.message || 'Unable to load categories and brands.');
     }
   }, []);
 
   const login = async (email, password) => {
     try {
-      const res = await api.login(email, password);
-      const newUser = {
-        id: res.id,
-        name: res.fullName || email.split('@')[0],
-        email: res.email,
-        role: res.role,
-        token: res.token,
-        avatar: null
+      const response = await api.login(email, password);
+      const authenticatedUser = {
+        id: response.id,
+        name: response.fullName,
+        email: response.email,
+        role: response.role,
+        token: response.token || null,
+        avatar: null,
       };
-      setUser(newUser);
-      localStorage.setItem('ohstem_user', JSON.stringify(newUser));
-      return { success: true, user: newUser };
+      setUser(authenticatedUser);
+      localStorage.setItem('ohstem_user', JSON.stringify(authenticatedUser));
+      return { success: true, user: authenticatedUser };
     } catch (error) {
-      // Fallback local login if backend is unreachable or for quick testing
-      const name = email.split('@')[0];
-      const newUser = {
-        name: name.charAt(0).toUpperCase() + name.slice(1),
-        email: email,
-        role: email.toLowerCase().includes('admin') ? 'ADMIN' : 'MEMBER',
-        avatar: null
+      return {
+        success: false,
+        message: error.message || 'Invalid email or password.',
       };
-      setUser(newUser);
-      localStorage.setItem('ohstem_user', JSON.stringify(newUser));
-      return { success: true, user: newUser };
     }
-  };
-
-  const loginWithGoogle = (googleUser) => {
-    const newUser = {
-      name: googleUser.name,
-      email: googleUser.email,
-      role: 'MEMBER',
-      avatar: googleUser.avatar
-    };
-    setUser(newUser);
-    localStorage.setItem('ohstem_user', JSON.stringify(newUser));
-    return true;
   };
 
   const logout = () => {
     setUser(null);
     localStorage.removeItem('ohstem_user');
     localStorage.removeItem('ohstem_token');
-    localStorage.removeItem('ohstem_cart');
   };
-
-  // 2. Products State
-  const [products, setProducts] = useState([]);
-  const [loadingProducts, setLoadingProducts] = useState(false);
-
-  // Helper to map backend product DTO to UI model
-  const mapBackendProduct = (p) => ({
-    id: p.id,
-    name: p.name,
-    description: p.description || '',
-    price: Number(p.price || 0),
-    stock: p.stockQty !== undefined && p.stockQty !== null ? p.stockQty : 50,
-    rating: 4.8,
-    reviews: 24,
-    category: p.categoryName || 'General',
-    categoryId: p.categoryId || 1,
-    brand: p.brandName || 'General',
-    brandId: p.brandId || 1,
-    ageRange: 'Age 8-12',
-    image: p.imageUrl || DEFAULT_IMAGE,
-    sku: `PROD-${p.id}`
-  });
 
   const fetchProducts = useCallback(async () => {
     setLoadingProducts(true);
+    setProductsError('');
     try {
       const data = await api.getProducts();
-      if (Array.isArray(data) && data.length > 0) {
-        setProducts(data.map(mapBackendProduct));
-      } else {
-        // Fallback default sample products if backend returns empty list
-        setProducts([
-          {
-            id: 1,
-            name: "Smart Home IoT Kit",
-            price: 1250000,
-            rating: 4.5,
-            reviews: 42,
-            category: "Electronics",
-            categoryId: 1,
-            brand: "Glow Lab",
-            brandId: 1,
-            ageRange: "Age 13+",
-            image: DEFAULT_IMAGE,
-            sku: "IoT-SH-01",
-            stock: 45
-          }
-        ]);
-      }
-    } catch (e) {
-      console.warn("Could not fetch products from backend, using cached/mock products:", e);
-      try {
-        const saved = localStorage.getItem('ohstem_products');
-        if (saved) setProducts(JSON.parse(saved));
-      } catch (err) {}
+      setProducts(Array.isArray(data) ? data.map(mapBackendProduct) : []);
+    } catch (error) {
+      setProducts([]);
+      setProductsError(error.message || 'Unable to load products.');
     } finally {
       setLoadingProducts(false);
     }
@@ -152,117 +103,70 @@ export const AppProvider = ({ children }) => {
   useEffect(() => {
     fetchProducts();
     fetchMetadata();
-  }, [fetchProducts, fetchMetadata]);
+  }, [fetchMetadata, fetchProducts]);
 
-  useEffect(() => {
-    if (products.length > 0) {
-      localStorage.setItem('ohstem_products', JSON.stringify(products));
-    }
-  }, [products]);
+  const toProductPayload = (product) => ({
+    name: product.name.trim(),
+    description: product.description?.trim() || '',
+    price: Number(product.price),
+    stockQty: Number(product.stockQty ?? product.stock),
+    imageUrl: product.imageUrl?.trim() || product.image?.trim() || '',
+    categoryId: Number(product.categoryId),
+    brandId: Number(product.brandId),
+  });
 
-  // Product CRUD Handlers
-  const addProduct = async (newProd) => {
-    try {
-      const catId = newProd.categoryId || (categories.find(c => c.name === newProd.category)?.id) || 1;
-      const bId = newProd.brandId || (brands[0]?.id) || 1;
-
-      const payload = {
-        name: newProd.name,
-        description: newProd.description || newProd.sku || 'Product description',
-        price: Number(newProd.price),
-        stockQty: Number(newProd.stock || newProd.stockQty || 10),
-        imageUrl: newProd.image || newProd.imageUrl || DEFAULT_IMAGE,
-        categoryId: Number(catId),
-        brandId: Number(bId)
-      };
-
-      await api.createProduct(payload);
-      await fetchProducts();
-    } catch (e) {
-      console.error("Backend addProduct error, performing local update:", e);
-      setProducts(prev => [
-        ...prev,
-        {
-          ...newProd,
-          id: prev.length > 0 ? Math.max(...prev.map(p => p.id)) + 1 : 1,
-          rating: 5.0,
-          reviews: 0
-        }
-      ]);
-    }
+  const addProduct = async (product) => {
+    const created = await api.createProduct(toProductPayload(product));
+    await fetchProducts();
+    return created;
   };
 
-  const updateProduct = async (id, updatedFields) => {
-    try {
-      const catId = updatedFields.categoryId || (categories.find(c => c.name === updatedFields.category)?.id) || 1;
-      const bId = updatedFields.brandId || (brands[0]?.id) || 1;
-
-      const payload = {
-        name: updatedFields.name,
-        description: updatedFields.description || updatedFields.sku || 'Product description',
-        price: Number(updatedFields.price),
-        stockQty: Number(updatedFields.stock || updatedFields.stockQty || 10),
-        imageUrl: updatedFields.image || updatedFields.imageUrl || DEFAULT_IMAGE,
-        categoryId: Number(catId),
-        brandId: Number(bId)
-      };
-
-      await api.updateProduct(id, payload);
-      await fetchProducts();
-    } catch (e) {
-      console.error("Backend updateProduct error, performing local update:", e);
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updatedFields } : p));
-    }
+  const updateProduct = async (id, product) => {
+    const updated = await api.updateProduct(id, toProductPayload(product));
+    await fetchProducts();
+    return updated;
   };
 
   const deleteProduct = async (id) => {
-    try {
-      await api.deleteProduct(id);
-      await fetchProducts();
-    } catch (e) {
-      console.error("Backend deleteProduct error, performing local delete:", e);
-      setProducts(prev => prev.filter(p => p.id !== id));
-    }
+    await api.deleteProduct(id);
+    await fetchProducts();
   };
 
-  // 3. Cart State
+  // The current backend has no cart API. This is intentional device-local cart state,
+  // not seeded/mock server data.
   const [cart, setCart] = useState(() => {
     try {
-      const saved = localStorage.getItem('ohstem_cart');
-      return saved ? JSON.parse(saved) : [
-        {
-          id: 1,
-          name: "Smart Home IoT Kit",
-          price: 1250000,
-          quantity: 1,
-          image: DEFAULT_IMAGE,
-          sku: "IoT-SH-01"
-        }
-      ];
-    } catch (e) {
+      const saved = localStorage.getItem('ohstem_cart_v2');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
       return [];
     }
   });
 
-  const [voucher, setVoucher] = useState(null);
-  const [shippingFee, setShippingFee] = useState(35000);
-
   useEffect(() => {
-    localStorage.setItem('ohstem_cart', JSON.stringify(cart));
+    localStorage.setItem('ohstem_cart_v2', JSON.stringify(cart));
   }, [cart]);
 
+  useEffect(() => {
+    localStorage.removeItem('ohstem_cart');
+    localStorage.removeItem('ohstem_products');
+    localStorage.removeItem('ohstem_orders');
+  }, []);
+
   const addToCart = (product) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
+    setCart((current) => {
+      const existing = current.find((item) => item.id === product.id);
       if (existing) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+        return current.map((item) => (
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        ));
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...current, { ...product, quantity: 1 }];
     });
   };
 
   const removeFromCart = (id) => {
-    setCart(prev => prev.filter(item => item.id !== id));
+    setCart((current) => current.filter((item) => item.id !== id));
   };
 
   const updateQuantity = (id, quantity) => {
@@ -270,119 +174,39 @@ export const AppProvider = ({ children }) => {
       removeFromCart(id);
       return;
     }
-    setCart(prev => prev.map(item => item.id === id ? { ...item, quantity } : item));
+    setCart((current) => current.map((item) => (
+      item.id === id ? { ...item, quantity } : item
+    )));
   };
 
-  const applyVoucher = (code) => {
-    const upperCode = code.toUpperCase();
-    if (upperCode === 'OHSTEM10') {
-      setVoucher({ code: 'OHSTEM10', discountPercent: 10 });
-      return { success: true, message: '10% discount applied!' };
-    } else if (upperCode === 'FREESHIP') {
-      setVoucher({ code: 'FREESHIP', discountPercent: 0, freeShipping: true });
-      setShippingFee(0);
-      return { success: true, message: 'Free shipping applied!' };
-    }
-    return { success: false, message: 'Invalid voucher code.' };
-  };
+  const clearCart = () => setCart([]);
+  const shippingFee = 35000;
+  const getSubtotal = () => cart.reduce(
+    (total, item) => total + (Number(item.price) * item.quantity),
+    0,
+  );
+  const getDiscountAmount = () => 0;
+  const getTotal = () => getSubtotal() + shippingFee;
 
-  const clearCart = () => {
-    setCart([]);
-    setVoucher(null);
-    setShippingFee(35000);
-  };
-
-  const getSubtotal = () => cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  
-  const getDiscountAmount = () => {
-    if (!voucher || !voucher.discountPercent) return 0;
-    return Math.round((getSubtotal() * voucher.discountPercent) / 100);
-  };
-
-  const getTotal = () => {
-    const subtotal = getSubtotal();
-    const discount = getDiscountAmount();
-    const fee = voucher?.freeShipping ? 0 : shippingFee;
-    return subtotal - discount + fee;
-  };
-
-  // 4. Orders State (For Admin Dashboard)
-  const [orders, setOrders] = useState(() => {
-    try {
-      const saved = localStorage.getItem('ohstem_orders');
-      return saved ? JSON.parse(saved) : [
-        {
-          id: "OS-1024",
-          customer: "Vietnam Australia International School",
-          district: "Binh Thanh District",
-          address: "594 Ba Thang Hai Street, Ward 14, District 10, Ho Chi Minh City",
-          contactName: "Ms. Lan Anh",
-          phone: "0912345678",
-          date: "Oct 24, 2023",
-          paymentMethod: "Bank Transfer",
-          total: 15450000,
-          status: "Processing",
-          items: [
-            { id: 1, name: "Smart Home IoT Kit", sku: "IoT-SH-01", quantity: 5, price: 1390000, image: DEFAULT_IMAGE }
-          ]
-        }
-      ];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem('ohstem_orders', JSON.stringify(orders));
-  }, [orders]);
-
-  const placeOrder = (shippingInfo, paymentMethod, requestedOrderId) => {
-    const orderId = requestedOrderId || `OS-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newOrder = {
-      id: orderId,
-      customer: shippingInfo.fullName,
-      district: shippingInfo.address.split(',')[1]?.trim() || "Individual",
-      address: shippingInfo.address,
-      contactName: shippingInfo.fullName,
-      phone: shippingInfo.phone,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      paymentMethod: paymentMethod === 'bank' ? 'Bank Transfer' : paymentMethod === 'vietqr' ? 'VietQR Online' : 'COD',
-      total: getTotal(),
-      status: 'Processing',
-      items: cart.map(item => ({ ...item }))
-    };
-
-    setOrders(prev => [newOrder, ...prev]);
-    clearCart();
-    return orderId;
-  };
-
-  const updateOrderStatus = (id, newStatus) => {
-    setOrders(prev => prev.map(order => order.id === id ? { ...order, status: newStatus } : order));
-  };
-
-  const addNewOrder = (newOrder) => {
-    setOrders(prev => [
-      {
-        ...newOrder,
-        id: `OS-${Math.floor(1000 + Math.random() * 9000)}`,
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      },
-      ...prev
-    ]);
+  // Orders, vouchers and registration are not exposed by the current backend.
+  // Keep these states empty so the UI never presents locally invented records as API data.
+  const orders = [];
+  const unavailable = () => {
+    throw new Error('This action is not available because the backend does not provide this API yet.');
   };
 
   return (
     <AppContext.Provider value={{
       user,
       login,
-      loginWithGoogle,
       logout,
       products,
+      productsError,
       loadingProducts,
       fetchProducts,
       categories,
       brands,
+      metadataError,
       addProduct,
       updateProduct,
       deleteProduct,
@@ -390,20 +214,21 @@ export const AppProvider = ({ children }) => {
       addToCart,
       removeFromCart,
       updateQuantity,
-      voucher,
-      applyVoucher,
+      clearCart,
+      voucher: null,
+      applyVoucher: unavailable,
       shippingFee,
       getSubtotal,
       getDiscountAmount,
       getTotal,
       orders,
-      placeOrder,
-      updateOrderStatus,
-      addNewOrder,
+      placeOrder: unavailable,
+      updateOrderStatus: unavailable,
+      addNewOrder: unavailable,
       showLoginPrompt,
       setShowLoginPrompt,
       currentAdminTab,
-      setCurrentAdminTab
+      setCurrentAdminTab,
     }}>
       {children}
     </AppContext.Provider>

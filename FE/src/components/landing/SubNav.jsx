@@ -1,11 +1,5 @@
 import React from 'react';
 
-const fallbackCategories = [
-  { name: 'Robotics' },
-  { name: 'Electronics' },
-  { name: 'STEM Kits' },
-];
-
 const categoryIcon = (name) => {
   if (name === 'Robotics') return 'precision_manufacturing';
   if (name === 'Electronics') return 'memory';
@@ -14,7 +8,7 @@ const categoryIcon = (name) => {
 };
 
 const SubNav = ({ categories, selectedFilter, onFilterChange }) => {
-  const availableCategories = categories?.length ? categories : fallbackCategories;
+  const availableCategories = categories || [];
   const items = [
     { label: 'All kits', value: 'All', icon: 'apps' },
     ...availableCategories.slice(0, 5).map((category) => ({
