@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
-// Layouts
 import LandingLayout from '../layouts/LandingLayout';
 import AuthLayout from '../layouts/AuthLayout';
 import AdminLayout from '../layouts/AdminLayout';
 import CheckoutLayout from '../layouts/CheckoutLayout';
 import RouteLoadBoundary from '../components/loading/RouteLoadBoundary';
 
-// Pages
 import LoginPage from '../pages/LoginPage';
 import ProductPage from '../pages/ProductPage';
+import ProductDetailPage from '../pages/ProductDetailPage';
 import CheckoutPage from '../pages/CheckoutPage';
 import AdminPage from '../pages/AdminPage';
 
@@ -19,7 +18,7 @@ const AppRoutes = () => {
   const [catalogSearch, setCatalogSearch] = useState('');
   const [adminSearch, setAdminSearch] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
-  const [maxPrice, setMaxPrice] = useState(2000000);
+  const [maxPrice, setMaxPrice] = useState(3000000);
 
   const skeletonVariant = location.pathname === '/login'
     ? 'login'
@@ -30,7 +29,6 @@ const AppRoutes = () => {
   return (
     <RouteLoadBoundary key={location.pathname} variant={skeletonVariant}>
       <Routes location={location}>
-        {/* Client Facing Storefront Routes */}
         <Route
           path="/"
           element={
@@ -51,6 +49,14 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/products/:id"
+          element={
+            <CheckoutLayout>
+              <ProductDetailPage />
+            </CheckoutLayout>
+          }
+        />
+        <Route
           path="/checkout"
           element={
             <CheckoutLayout>
@@ -58,8 +64,6 @@ const AppRoutes = () => {
             </CheckoutLayout>
           }
         />
-
-        {/* Authentication Route */}
         <Route
           path="/login"
           element={
@@ -68,8 +72,6 @@ const AppRoutes = () => {
             </AuthLayout>
           }
         />
-
-        {/* Admin Dashboard Route */}
         <Route
           path="/admin"
           element={
@@ -78,8 +80,6 @@ const AppRoutes = () => {
             </AdminLayout>
           }
         />
-
-        {/* Fallback Catch-All Redirect */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </RouteLoadBoundary>

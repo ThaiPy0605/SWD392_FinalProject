@@ -14,9 +14,7 @@ const AdminLayout = ({ children, searchQuery, setSearchQuery }) => {
 
   const menuItems = [
     { name: 'Overview', label: 'Dashboard', icon: 'dashboard' },
-    { name: 'Orders', label: 'Orders', icon: 'shopping_cart' },
-    { name: 'Products', label: 'Products', icon: 'inventory_2' },
-    { name: 'Customers', label: 'Customers', icon: 'school' }
+    { name: 'Products', label: 'Products', icon: 'inventory_2' }
   ];
 
   return (

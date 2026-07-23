@@ -1,29 +1,30 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Pagination from '../components/catalog/Pagination';
+import ProductSkeleton from '../components/catalog/ProductSkeleton';
 
-const PRODUCTS_PER_PAGE = 3;
+const PRODUCTS_PER_PAGE = 6;
 
 const ProductPage = ({ searchQuery, selectedFilter, maxPrice }) => {
-  const { products, addToCart } = useApp();
+  const { products, productsError, loadingProducts, addToCart, fetchProducts } = useApp();
   const [currentPage, setCurrentPage] = useState(1);
   const [addedProductId, setAddedProductId] = useState(null);
 
   const filteredProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+
     return products.filter((product) => {
-      const matchesGroup =
-        selectedFilter === 'All' ||
-        product.category === selectedFilter ||
-        product.ageRange === selectedFilter;
+      const matchesCategory = selectedFilter === 'All' || product.category === selectedFilter;
       const matchesPrice = product.price <= maxPrice;
       const matchesSearch =
         !query ||
         product.name.toLowerCase().includes(query) ||
         product.category.toLowerCase().includes(query) ||
-        product.sku.toLowerCase().includes(query);
+        product.brand.toLowerCase().includes(query) ||
+        product.description.toLowerCase().includes(query);
 
-      return matchesGroup && matchesPrice && matchesSearch;
+      return matchesCategory && matchesPrice && matchesSearch;
     });
   }, [products, searchQuery, selectedFilter, maxPrice]);
 
@@ -38,6 +39,7 @@ const ProductPage = ({ searchQuery, selectedFilter, maxPrice }) => {
   );
 
   const handleAddToCart = (product) => {
+    if (!product) return;
     addToCart(product);
     setAddedProductId(product.id);
     window.setTimeout(() => setAddedProductId(null), 1600);
@@ -60,7 +62,11 @@ const ProductPage = ({ searchQuery, selectedFilter, maxPrice }) => {
             real-world engineering skills.
           </p>
           <div className="catalog-hero__actions">
-            <button type="button" onClick={() => handleAddToCart(featuredProduct)}>
+            <button
+              type="button"
+              disabled={!featuredProduct}
+              onClick={() => handleAddToCart(featuredProduct)}
+            >
               Explore the Yolo:Bit kit
               <span className="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
             </button>
@@ -70,7 +76,7 @@ const ProductPage = ({ searchQuery, selectedFilter, maxPrice }) => {
         <div className="catalog-hero__visual parallax-layer--back" aria-hidden="true">
           <div className="hero-orbit hero-orbit--one" />
           <div className="hero-orbit hero-orbit--two" />
-          <img src={featuredProduct?.image} alt="" />
+          {featuredProduct && <img src={featuredProduct.image} alt="" />}
           <div className="hero-stat">
             <strong>50+</strong>
             <span>guided projects</span>
@@ -90,7 +96,16 @@ const ProductPage = ({ searchQuery, selectedFilter, maxPrice }) => {
           </div>
         </div>
 
-        {visibleProducts.length === 0 ? (
+        {loadingProducts ? (
+          <ProductSkeleton count={6} />
+        ) : productsError ? (
+          <div className="catalog-empty" role="alert">
+            <span className="material-symbols-outlined" aria-hidden="true">cloud_off</span>
+            <h3>Products could not be loaded</h3>
+            <p>{productsError}</p>
+            <button type="button" onClick={fetchProducts}>Try again</button>
+          </div>
+        ) : visibleProducts.length === 0 ? (
           <div className="catalog-empty" role="status">
             <span className="material-symbols-outlined" aria-hidden="true">search_off</span>
             <h3>No matching kits</h3>
@@ -101,25 +116,34 @@ const ProductPage = ({ searchQuery, selectedFilter, maxPrice }) => {
             <div className="product-grid">
               {visibleProducts.map((product) => {
                 const wasAdded = addedProductId === product.id;
+
                 return (
                   <article className="product-card" key={product.id}>
                     <div className="product-card__media">
                       <span className="product-card__category">{product.category}</span>
-                      <img src={product.image} alt={product.name} />
+                      <Link
+                        to={`/products/${product.id}`}
+                        className="product-card__image-link"
+                        aria-label={`View ${product.name}`}
+                      >
+                        <img src={product.image} alt={product.name} />
+                      </Link>
                       <button type="button" aria-label={`Save ${product.name} to favorites`}>
                         <span className="material-symbols-outlined" aria-hidden="true">favorite</span>
                       </button>
                     </div>
                     <div className="product-card__body">
                       <div className="product-card__meta">
-                        <span>{product.ageRange}</span>
+                        <span>{product.brand}</span>
                         <span>
-                          <span className="material-symbols-outlined" aria-hidden="true">star</span>
-                          {product.rating} ({product.reviews})
+                          <span className="material-symbols-outlined" aria-hidden="true">inventory_2</span>
+                          {product.stock} in stock
                         </span>
                       </div>
-                      <h3>{product.name}</h3>
-                      <p className="product-card__sku">SKU {product.sku}</p>
+                      <h3>
+                        <Link to={`/products/${product.id}`}>{product.name}</Link>
+                      </h3>
+                      <p className="product-card__sku">{product.category}</p>
                       <div className="product-card__footer">
                         <strong>{product.price.toLocaleString()} ₫</strong>
                         <button

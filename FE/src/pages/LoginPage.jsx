@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { login, loginWithGoogle } = useApp();
+  const { login } = useApp();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,13 +27,26 @@ const LoginPage = () => {
     setMode(nextMode);
   };
 
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     event.preventDefault();
     if (!email.trim()) return setError('Please enter your email address.');
     if (password.length < 6) return setError('Password must contain at least 6 characters.');
 
-    login(email, password);
-    navigate(email.toLowerCase().includes('admin') ? '/admin' : '/');
+    try {
+      const result = await login(email, password);
+      if (!result?.success) {
+        setError(result?.message || 'Invalid email or password.');
+        return;
+      }
+      const userRole = result.user.role;
+      if (userRole === 'ADMIN') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
+    } catch (err) {
+      setError(err.message || 'Invalid email or password');
+    }
   };
 
   const handleRegister = (event) => {
@@ -57,23 +70,11 @@ const LoginPage = () => {
       return;
     }
 
-    setEmail(registerForm.email);
-    setPassword('');
-    switchMode('login');
+    setRegisterError('Registration is not available yet because the backend does not provide a registration API.');
   };
 
   const updateRegisterField = (field, value) => {
     setRegisterForm((current) => ({ ...current, [field]: value }));
-  };
-
-  const handleGoogleLogin = () => {
-    loginWithGoogle({ name: 'Tuan Phan', email: 'tuanpt2109@gmail.com', avatar: null });
-    navigate('/');
-  };
-
-  const handleAdminLogin = () => {
-    login('admin@ohstem.edu', '123456');
-    navigate('/admin');
   };
 
   return (
@@ -289,14 +290,6 @@ const LoginPage = () => {
                 </button>
               </form>
 
-              <div className="login-divider"><span>or use quick access</span></div>
-              <div className="login-social">
-                <button type="button" onClick={handleGoogleLogin}><strong>G</strong>Google</button>
-                <button type="button" onClick={handleAdminLogin}>
-                  <span className="material-symbols-outlined" aria-hidden="true">admin_panel_settings</span>
-                  Admin demo
-                </button>
-              </div>
               <p className="login-card__footer">
                 New to OhStem?{' '}
                 <button type="button" onClick={() => switchMode('register')}>Create an account</button>
